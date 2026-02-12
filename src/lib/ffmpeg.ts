@@ -36,17 +36,22 @@ const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY;
 const SHOTSTACK_TEMPLATE_ID = process.env.SHOTSTACK_TEMPLATE_ID || '11fe0355-2def-435c-8deb-95891d990d78';
 
 export async function submitVideoJob(params: VideoJobParams): Promise<string> {
-    console.log("Generating video with Shotstack API:", {
-        title: params.title,
-        script_length: params.script.length,
-        duration: params.duration,
-    });
+    console.log("=== SHOTSTACK VIDEO GENERATION STARTING ===");
+    console.log("Title:", params.title);
+    console.log("Script length:", params.script.length);
+    console.log("Duration:", params.duration);
+    console.log("SHOTSTACK_API_KEY exists:", !!SHOTSTACK_API_KEY);
+    console.log("SHOTSTACK_API_KEY length:", SHOTSTACK_API_KEY?.length || 0);
+    console.log("SHOTSTACK_TEMPLATE_ID:", SHOTSTACK_TEMPLATE_ID);
 
     // Check if Shotstack API is configured
     if (!SHOTSTACK_API_KEY) {
-        console.warn("SHOTSTACK_API_KEY not set, falling back to simple video generation");
+        console.error("❌ SHOTSTACK_API_KEY NOT FOUND IN ENVIRONMENT!");
+        console.error("Falling back to HTML video generation");
         return await generateSimpleVideo(params);
     }
+
+    console.log("✅ Shotstack API key found, proceeding with video generation...");
 
     try {
         // Prepare merge fields for Shotstack template
