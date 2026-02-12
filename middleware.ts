@@ -1,11 +1,6 @@
-import NextAuth from "next-auth";
-import { authConfig } from "./auth.config";
-
-// Create a separate auth instance for Edge Runtime (middleware)
-// This instance does NOT have database or bcryptjs - only the edge-compatible config
-const { auth } = NextAuth(authConfig);
-
-export default auth;
+// Export the auth middleware from the main auth instance
+// This ensures middleware and API routes share the same session
+export { auth as default } from "./src/auth";
 
 export const config = {
     matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
