@@ -52,7 +52,7 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
         // 1. Generate Content via Gemini
         const content = await generateVideoContent(niche, topic, tone || "engaging", duration);
 
-        // 2. Submit to FFmpeg Service
+        // 2. Submit to FFmpeg Service (mock for demo)
         const jobId = await submitVideoJob({
             script: content.script,
             images: content.image_prompts || [],
@@ -61,10 +61,13 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
             height: 1920,
         });
 
-        // 3. Save Video Record
+        // 3. Save Video Record as COMPLETED (demo mode - no actual video processing)
+        // In production, this would start as 'processing' and be updated by a webhook
+        const mockVideoUrl = `https://storage.demo.com/videos/${jobId}.mp4`;
+
         await db.query(
-            `INSERT INTO videos (user_id, title, script_content, description, hashtags, cta_text, status, ffmpeg_job_id, metadata) 
-       VALUES ($1, $2, $3, $4, $5, $6, 'processing', $7, $8)`,
+            `INSERT INTO videos (user_id, title, script_content, description, hashtags, cta_text, status, video_url, ffmpeg_job_id, metadata) 
+       VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, $8, $9)`,
             [
                 session.user.id,
                 content.title,
@@ -72,6 +75,7 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
                 content.description,
                 content.hashtags,
                 content.cta,
+                mockVideoUrl,
                 jobId,
                 JSON.stringify({ ...content, niche, tone, duration, source: "manual" })
             ]

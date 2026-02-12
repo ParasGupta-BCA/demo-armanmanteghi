@@ -11,35 +11,34 @@ export interface VideoJobParams {
 }
 
 export async function submitVideoJob(params: VideoJobParams): Promise<string> {
-    // In a real scenario, this would post to the external API
-    console.log("Submitting video job to external FFmpeg service:", params);
+    // For demo purposes, we're returning a mock job ID
+    // In production, this would call an actual video rendering service
+    console.log("Mock FFmpeg: Simulating video job submission with params:", {
+        script_length: params.script.length,
+        duration: params.duration,
+        images_count: params.images.length,
+        dimensions: `${params.width}x${params.height}`
+    });
 
-    if (!process.env.FFMPEG_API_KEY) {
-        console.warn("Missing FFMPEG_API_KEY environment variable. Using mock job ID.");
-        return `mock-job-${Date.now()}`;
-    }
+    // Generate a realistic-looking job ID
+    const jobId = `video-job-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
-    // Mocking the API call for demonstration
-    // const response = await fetch(EXTERNAL_API_URL, {
-    //   method: "POST",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //     "Authorization": `Bearer ${process.env.FFMPEG_API_KEY}`
-    //   },
-    //   body: JSON.stringify(params)
-    // });
+    console.log(`Mock FFmpeg: Job created with ID: ${jobId}`);
 
-    // if (!response.ok) {
-    //    throw new Error(`FFmpeg Service Error: ${response.statusText}`);
-    // }
-
-    // const data = await response.json();
-    // return data.job_id;
-
-    return `mock-job-${Date.now()}`;
+    // Simulate instant completion for demo purposes
+    // In a real implementation, the video would be processing asynchronously
+    return jobId;
 }
 
 export async function checkJobStatus(jobId: string): Promise<string> {
-    // Mock status check
+    // For demo purposes, always return "completed"
+    // In production, this would check the actual status from the rendering service
+    console.log(`Mock FFmpeg: Checking status for job ${jobId} - returning completed`);
     return "completed";
+}
+
+// Function to generate a mock video URL for completed jobs
+export function getMockVideoUrl(jobId: string): string {
+    // In production, this would be the actual rendered video URL from the service
+    return `https://storage.example.com/videos/${jobId}.mp4`;
 }
