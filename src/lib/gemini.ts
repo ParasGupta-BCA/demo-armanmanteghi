@@ -26,7 +26,8 @@ export async function generateVideoContent(
 
     try {
         const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        // Use gemini-pro instead of gemini-1.5-flash (more widely available)
+        const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
         const prompt = `
       Create a viral ${duration}-second vertical video script for TikTok/Reels/Shorts.
