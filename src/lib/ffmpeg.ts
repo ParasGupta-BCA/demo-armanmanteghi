@@ -1,7 +1,3 @@
-if (!process.env.FFMPEG_API_KEY) {
-    console.warn("Missing FFMPEG_API_KEY environment variable. Video generation will fail.");
-}
-
 const EXTERNAL_API_URL = "https://api.external-ffmpeg-service.com/v1/render"; // Placeholder URL
 
 export interface VideoJobParams {
@@ -17,6 +13,11 @@ export interface VideoJobParams {
 export async function submitVideoJob(params: VideoJobParams): Promise<string> {
     // In a real scenario, this would post to the external API
     console.log("Submitting video job to external FFmpeg service:", params);
+
+    if (!process.env.FFMPEG_API_KEY) {
+        console.warn("Missing FFMPEG_API_KEY environment variable. Using mock job ID.");
+        return `mock-job-${Date.now()}`;
+    }
 
     // Mocking the API call for demonstration
     // const response = await fetch(EXTERNAL_API_URL, {
