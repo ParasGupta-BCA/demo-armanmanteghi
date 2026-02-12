@@ -1,33 +1,80 @@
-import { auth } from "@/auth";
-import { db } from "@/lib/db";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { badgeVariants } from "@/components/ui/badge";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Copy, Play, Loader2, AlertCircle } from "lucide-react";
-import { redirect } from "next/navigation";
+import { Download, Copy, Loader2, RefreshCw } from "lucide-react";
 import Link from "next/link";
 
-async function getVideos(userId: string) {
-    const result = await db.query(
-        "SELECT * FROM videos WHERE user_id = $1 ORDER BY created_at DESC",
-        [userId]
-    );
-    return result.rows;
+interface Video {
+    id: string;
+    title: string;
+    script_content: string;
+    description: string;
+    hashtags: string[];
+    status: string;
+    video_url: string | null;
+    thumbnail_url: string | null;
+    created_at: string;
+    metadata: any;
+    error_message?: string;
 }
 
-export default async function LibraryPage() {
-    const session = await auth();
-    if (!session?.user?.id) redirect("/login");
+export default function LibraryPage() {
+    const [videos, setVideos] = useState<Video[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const videos = await getVideos(session.user.id);
+    const fetchVideos = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const response = await fetch('/api/videos');
+            if (!response.ok) {
+                throw new Error('Failed to fetch videos');
+            }
+            const data = await response.json();
+            setVideos(data.videos || []);
+        } catch (err: any) {
+            console.error('Error fetching videos:', err);
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchVideos();
+    }, []);
+
+    const handleCopyScript = (script: string) => {
+        navigator.clipboard.writeText(script);
+    };
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-96">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <h2 className="text-3xl font-bold tracking-tight">Video Library</h2>
-                <Button variant="outline">Refresh</Button>
+                <Button variant="outline" onClick={fetchVideos}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Refresh
+                </Button>
             </div>
+
+            {error && (
+                <div className="rounded-md bg-red-50 p-4 text-red-800">
+                    Error loading videos: {error}
+                </div>
+            )}
 
             <div className="rounded-md border bg-card">
                 <Table>
@@ -76,7 +123,7 @@ export default async function LibraryPage() {
                                             {video.status === 'processing' && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
                                             {video.status}
                                         </Badge>
-                                        {video.status === 'failed' && (
+                                        {video.status === 'failed' && video.error_message && (
                                             <div className="text-xs text-red-500 mt-1 max-w-[150px] truncate" title={video.error_message}>
                                                 {video.error_message}
                                             </div>
@@ -98,7 +145,7 @@ export default async function LibraryPage() {
                                                 size="icon"
                                                 variant="ghost"
                                                 title="Copy Script"
-                                                onClick={() => navigator.clipboard.writeText(video.script_content)}
+                                                onClick={() => handleCopyScript(video.script_content)}
                                             >
                                                 <Copy className="h-4 w-4" />
                                             </Button>
