@@ -1,5 +1,6 @@
 import type { NextAuthConfig } from "next-auth";
 
+// Edge-compatible auth config (NO database, NO bcryptjs)
 export const authConfig = {
     pages: {
         signIn: "/login",
@@ -13,20 +14,14 @@ export const authConfig = {
                 if (isLoggedIn) return true;
                 return false; // Redirect to login
             }
+
+            // Redirect logged-in users away from auth pages
+            if (isLoggedIn && (nextUrl.pathname === "/login" || nextUrl.pathname === "/signup")) {
+                return Response.redirect(new URL("/dashboard", nextUrl));
+            }
+
             return true;
         },
-        async session({ session, token }) {
-            if (token.sub && session.user) {
-                session.user.id = token.sub;
-            }
-            return session;
-        },
-        async jwt({ token, user }) {
-            if (user) {
-                token.sub = user.id;
-            }
-            return token;
-        }
     },
     providers: [], // Providers added in auth.ts
 } satisfies NextAuthConfig;

@@ -3,7 +3,7 @@ import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { authConfig } from "./auth.config";
+import { authConfig } from "../auth.config";
 
 async function getUser(email: string) {
     try {
@@ -17,6 +17,21 @@ async function getUser(email: string) {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
     ...authConfig,
+    callbacks: {
+        ...authConfig.callbacks,
+        async session({ session, token }) {
+            if (token.sub && session.user) {
+                session.user.id = token.sub;
+            }
+            return session;
+        },
+        async jwt({ token, user }) {
+            if (user) {
+                token.sub = user.id;
+            }
+            return token;
+        },
+    },
     providers: [
         Credentials({
             async authorize(credentials) {
