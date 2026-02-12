@@ -11,87 +11,127 @@ export interface VideoJobParams {
     webhook_url?: string;
 }
 
-interface FFmpegApiResponse {
-    job_id?: string;
-    video_url?: string;
-    status?: string;
-    error?: string;
+interface ShotstackRenderResponse {
+    success: boolean;
+    message: string;
+    response: {
+        id: string;
+        status: string;
+    };
 }
 
-const FFMPEG_API_URL = process.env.FFMPEG_API_URL || 'https://api.ffmpeg.run/v1';
-const FFMPEG_API_KEY = process.env.FFMPEG_API_KEY;
+interface ShotstackStatusResponse {
+    success: boolean;
+    message: string;
+    response: {
+        id: string;
+        status: string;
+        url?: string;
+        error?: string;
+    };
+}
+
+const SHOTSTACK_API_URL = 'https://api.shotstack.io/v1';
+const SHOTSTACK_API_KEY = process.env.SHOTSTACK_API_KEY;
+const SHOTSTACK_TEMPLATE_ID = process.env.SHOTSTACK_TEMPLATE_ID || '11fe0355-2def-435c-8deb-95891d990d78';
 
 export async function submitVideoJob(params: VideoJobParams): Promise<string> {
-    console.log("Generating video with FFmpeg API:", {
+    console.log("Generating video with Shotstack API:", {
         title: params.title,
         script_length: params.script.length,
         duration: params.duration,
     });
 
-    // Check if FFmpeg API is configured
-    if (!FFMPEG_API_KEY) {
-        console.warn("FFMPEG_API_KEY not set, falling back to simple video generation");
+    // Check if Shotstack API is configured
+    if (!SHOTSTACK_API_KEY) {
+        console.warn("SHOTSTACK_API_KEY not set, falling back to simple video generation");
         return await generateSimpleVideo(params);
     }
 
     try {
-        // Call FFmpeg API to generate video
-        const response = await fetch(`${FFMPEG_API_URL}/render`, {
+        // Prepare merge fields for Shotstack template
+        const mergeFields = prepareMergeFields(params);
+
+        // Call Shotstack render API
+        const response = await fetch(`${SHOTSTACK_API_URL}/templates/render`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${FFMPEG_API_KEY}`,
+                'x-api-key': SHOTSTACK_API_KEY,
             },
             body: JSON.stringify({
-                title: params.title,
-                script: params.script,
-                duration: params.duration,
-                width: params.width,
-                height: params.height,
-                images: params.images,
-                background_music_url: params.background_music_url,
-                format: 'mp4',
-                quality: 'high',
+                id: SHOTSTACK_TEMPLATE_ID,
+                merge: mergeFields,
             }),
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error("FFmpeg API error:", response.status, errorText);
-            throw new Error(`FFmpeg API returned status ${response.status}: ${errorText}`);
+            console.error("Shotstack API error:", response.status, errorText);
+            throw new Error(`Shotstack API returned status ${response.status}: ${errorText}`);
         }
 
-        const data: FFmpegApiResponse = await response.json();
+        const data: ShotstackRenderResponse = await response.json();
 
-        // If video is ready immediately, return the URL
-        if (data.video_url) {
-            console.log("Video generated immediately:", data.video_url);
-            return data.video_url;
+        if (!data.success || !data.response?.id) {
+            throw new Error("Shotstack API did not return render ID");
         }
 
-        // If we get a job ID, poll for completion
-        if (data.job_id) {
-            console.log("Video job started, polling for completion:", data.job_id);
-            return await pollForVideoCompletion(data.job_id);
-        }
+        console.log("Video render started:", data.response.id);
 
-        throw new Error("FFmpeg API did not return video URL or job ID");
+        // Poll for completion
+        const videoUrl = await pollShotstackRender(data.response.id);
+
+        console.log("Video rendered successfully:", videoUrl);
+        return videoUrl;
 
     } catch (error: any) {
-        console.error("Failed to generate video with FFmpeg API:", error);
+        console.error("Failed to generate video with Shotstack:", error);
         // Fallback to simple video generation
         console.warn("Falling back to simple video generation");
         return await generateSimpleVideo(params);
     }
 }
 
-// Poll FFmpeg API until video is ready (max 2 minutes)
-async function pollForVideoCompletion(jobId: string, maxAttempts = 24): Promise<string> {
+// Prepare merge fields from AI-generated content
+function prepareMergeFields(params: VideoJobParams): Array<{ find: string; replace: string }> {
+    const mergeFields = [
+        {
+            find: "HEADLINE",
+            replace: params.title
+        },
+        {
+            find: "VOICEOVER",
+            replace: params.script
+        }
+    ];
+
+    // Add image prompts if available
+    for (let i = 0; i < Math.min(params.images.length, 10); i++) {
+        mergeFields.push({
+            find: `IMAGE_${i + 1}_PROMPT`,
+            replace: params.images[i] || "A beautiful scene"
+        });
+    }
+
+    // Fill remaining image slots with generic prompts if needed
+    for (let i = params.images.length; i < 10; i++) {
+        mergeFields.push({
+            find: `IMAGE_${i + 1}_PROMPT`,
+            replace: "A magical landscape with stars and light"
+        });
+    }
+
+    return mergeFields;
+}
+
+// Poll Shotstack until video is ready (max 5 minutes)
+async function pollShotstackRender(renderId: string, maxAttempts = 60): Promise<string> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-            const response = await fetch(`${FFMPEG_API_URL}/status/${jobId}`, {
+            const response = await fetch(`${SHOTSTACK_API_URL}/render/${renderId}`, {
                 headers: {
-                    'Authorization': `Bearer ${FFMPEG_API_KEY}`,
+                    'x-api-key': SHOTSTACK_API_KEY!,
                 },
             });
 
@@ -99,19 +139,21 @@ async function pollForVideoCompletion(jobId: string, maxAttempts = 24): Promise<
                 throw new Error(`Status check failed: ${response.status}`);
             }
 
-            const data: FFmpegApiResponse = await response.json();
+            const data: ShotstackStatusResponse = await response.json();
 
-            if (data.status === 'completed' && data.video_url) {
-                console.log("Video completed:", data.video_url);
-                return data.video_url;
+            if (data.response.status === 'done' && data.response.url) {
+                console.log("Video completed:", data.response.url);
+                return data.response.url;
             }
 
-            if (data.status === 'failed' || data.error) {
-                throw new Error(`Video generation failed: ${data.error || 'Unknown error'}`);
+            if (data.response.status === 'failed') {
+                throw new Error(`Video generation failed: ${data.response.error || 'Unknown error'}`);
             }
 
-            // Wait 5 seconds before next poll
+            // Status is 'queued' or 'rendering', wait 5 seconds before next poll
             await new Promise(resolve => setTimeout(resolve, 5000));
+
+            console.log(`Render ${renderId} status: ${data.response.status} (attempt ${attempt + 1}/${maxAttempts})`);
 
         } catch (error) {
             console.error(`Polling attempt ${attempt + 1} failed:`, error);
@@ -119,7 +161,7 @@ async function pollForVideoCompletion(jobId: string, maxAttempts = 24): Promise<
         }
     }
 
-    throw new Error("Video generation timed out after 2 minutes");
+    throw new Error("Video generation timed out after 5 minutes");
 }
 
 // Fallback: Generate simple HTML video and upload to Blob
@@ -199,14 +241,14 @@ async function generateSimpleVideo(params: VideoJobParams): Promise<string> {
 }
 
 export async function checkJobStatus(jobId: string): Promise<string> {
-    if (!FFMPEG_API_KEY) {
+    if (!SHOTSTACK_API_KEY) {
         return "completed";
     }
 
     try {
-        const response = await fetch(`${FFMPEG_API_URL}/status/${jobId}`, {
+        const response = await fetch(`${SHOTSTACK_API_URL}/render/${jobId}`, {
             headers: {
-                'Authorization': `Bearer ${FFMPEG_API_KEY}`,
+                'x-api-key': SHOTSTACK_API_KEY,
             },
         });
 
@@ -214,8 +256,16 @@ export async function checkJobStatus(jobId: string): Promise<string> {
             return "unknown";
         }
 
-        const data: FFmpegApiResponse = await response.json();
-        return data.status || "unknown";
+        const data: ShotstackStatusResponse = await response.json();
+
+        const statusMap: { [key: string]: string } = {
+            'queued': 'processing',
+            'rendering': 'processing',
+            'done': 'completed',
+            'failed': 'failed'
+        };
+
+        return statusMap[data.response.status] || "unknown";
     } catch (error) {
         console.error("Failed to check job status:", error);
         return "unknown";
