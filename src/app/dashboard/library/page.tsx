@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Download, Copy, Play, Loader2, AlertCircle } from "lucide-react";
 import { redirect } from "next/navigation";
-import Image from "next/image";
+import Link from "next/link";
 
 async function getVideos(userId: string) {
     const result = await db.query(
@@ -87,12 +87,19 @@ export default async function LibraryPage() {
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
-                                            {video.status === 'completed' && (
-                                                <Button size="icon" variant="ghost" title="Download">
-                                                    <Download className="h-4 w-4" />
-                                                </Button>
+                                            {video.status === 'completed' && video.video_url && (
+                                                <Link href={video.video_url} target="_blank" download>
+                                                    <Button size="icon" variant="ghost" title="Download Video">
+                                                        <Download className="h-4 w-4" />
+                                                    </Button>
+                                                </Link>
                                             )}
-                                            <Button size="icon" variant="ghost" title="Copy Script">
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                title="Copy Script"
+                                                onClick={() => navigator.clipboard.writeText(video.script_content)}
+                                            >
                                                 <Copy className="h-4 w-4" />
                                             </Button>
                                         </div>

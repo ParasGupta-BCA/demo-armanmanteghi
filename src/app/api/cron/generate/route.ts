@@ -39,19 +39,20 @@ export async function GET(req: Request) {
                 // A. Generate Content via Gemini
                 const content = await generateVideoContent(niche, topic, tone, duration);
 
-                // B. Submit to FFmpeg Service
-                const jobId = await submitVideoJob({
+                // B. Upload video to Vercel Blob
+                const videoUrl = await submitVideoJob({
                     script: content.script,
                     images: content.image_prompts || [],
                     duration: duration,
                     width: 1080,
                     height: 1920,
+                    title: content.title,
                 });
 
                 // C. Save Video Record
                 await db.query(
-                    `INSERT INTO videos (user_id, title, script_content, description, hashtags, cta_text, status, ffmpeg_job_id, metadata)
-                VALUES ($1, $2, $3, $4, $5, $6, 'processing', $7, $8)`,
+                    `INSERT INTO videos (user_id, title, script_content, description, hashtags, cta_text, status, video_url, ffmpeg_job_id, metadata)
+                VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, $8, $9)`,
                     [
                         user_id,
                         content.title,
@@ -59,7 +60,8 @@ export async function GET(req: Request) {
                         content.description,
                         content.hashtags,
                         content.cta,
-                        jobId,
+                        videoUrl,
+                        videoUrl,
                         JSON.stringify(content)
                     ]
                 );
@@ -73,10 +75,10 @@ export async function GET(req: Request) {
                 // E. Log Activity
                 await db.query(
                     `INSERT INTO activity_logs (user_id, action_type, details) VALUES ($1, 'SCHEDULED_GENERATION_SUCCESS', $2)`,
-                    [user_id, JSON.stringify({ jobId, title: content.title })]
+                    [user_id, JSON.stringify({ videoUrl, title: content.title })]
                 );
 
-                results.push({ userId: user_id, status: "success", jobId });
+                results.push({ userId: user_id, status: "success", videoUrl });
 
             } catch (err: any) {
                 console.error(`Error processing user ${setting.user_id}:`, err);

@@ -52,19 +52,17 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
         // 1. Generate Content via Gemini
         const content = await generateVideoContent(niche, topic, tone || "engaging", duration);
 
-        // 2. Submit to FFmpeg Service (mock for demo)
-        const jobId = await submitVideoJob({
+        // 2. Upload video to Vercel Blob (returns public URL)
+        const videoUrl = await submitVideoJob({
             script: content.script,
             images: content.image_prompts || [],
             duration: duration,
             width: 1080,
             height: 1920,
+            title: content.title,
         });
 
-        // 3. Save Video Record as COMPLETED (demo mode - no actual video processing)
-        // In production, this would start as 'processing' and be updated by a webhook
-        const mockVideoUrl = `https://storage.demo.com/videos/${jobId}.mp4`;
-
+        // 3. Save Video Record with real Vercel Blob URL
         await db.query(
             `INSERT INTO videos (user_id, title, script_content, description, hashtags, cta_text, status, video_url, ffmpeg_job_id, metadata) 
        VALUES ($1, $2, $3, $4, $5, $6, 'completed', $7, $8, $9)`,
@@ -75,8 +73,8 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
                 content.description,
                 content.hashtags,
                 content.cta,
-                mockVideoUrl,
-                jobId,
+                videoUrl, // Real Vercel Blob URL
+                videoUrl, // Use URL as job ID too
                 JSON.stringify({ ...content, niche, tone, duration, source: "manual" })
             ]
         );
@@ -84,7 +82,7 @@ export async function generateVideo(prevState: GenerateState, formData: FormData
         // 4. Log the activity
         await db.query(
             `INSERT INTO activity_logs (user_id, action_type, details) VALUES ($1, 'VIDEO_GENERATION_TRIGGERED', $2)`,
-            [session.user.id, JSON.stringify({ topic, niche, jobId })]
+            [session.user.id, JSON.stringify({ topic, niche, videoUrl })]
         );
 
     } catch (error: any) {
